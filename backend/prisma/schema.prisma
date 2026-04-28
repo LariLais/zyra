@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String
+  cnpj      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  customers Customer[]
+  products  Product[]
+  orders    Order[]
+
+  orderItems OrderItem[]
+
+  auditLogs AuditLog[]
+
+  payments Payment[]
+
+  suppliers Supplier[]
+
+  stockMovements StockMovement[]
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  name     String
+  email    String
+  password String
+  role     String @default("MEMBER")
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  refreshTokens RefreshToken[]
+}
+
+model Customer {
+  id        Int     @id @default(autoincrement())
+  name      String
+  document  String?
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@unique([companyId, document])
+}
+
+model Product {
+  id        Int     @id @default(autoincrement())
+  name      String
+  price     Decimal @db.Decimal(10, 2)
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  stockMovements StockMovement[]
+}
+
+model Order {
+  id    Int     @id @default(autoincrement())
+  code  String
+  total Decimal @db.Decimal(10, 2)
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@unique([companyId, code])
+}
+
+model OrderItem {
+  id       Int     @id @default(autoincrement())
+  name     String
+  quantity Int
+  price    Decimal @db.Decimal(10, 2)
+
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id])
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+}
+
+model AuditLog {
+  id       Int    @id @default(autoincrement())
+  action   String
+  entity   String
+  entityId Int
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Payment {
+  id     Int     @id @default(autoincrement())
+  amount Decimal @db.Decimal(10, 2)
+  status String
+
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id])
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+}
+
+model Supplier {
+  id        Int     @id @default(autoincrement())
+  name      String
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+}
+
+model StockMovement {
+  id       Int    @id @default(autoincrement())
+  quantity Int
+  type     String
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+}
+
+model RefreshToken {
+  id    Int    @id @default(autoincrement())
+  token String @unique
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
