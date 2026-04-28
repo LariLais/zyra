@@ -6,164 +6,369 @@ datasource db {
   provider = "mysql"
 }
 
-model Company {
+model AuditLog {
   id        Int      @id @default(autoincrement())
-  name      String
-  cnpj      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  action    String   @db.VarChar(100)
+  entity    String   @db.VarChar(100)
+  entityId  Int
+  oldData   Json?
+  newData   Json?
+  metadata  Json?
+  userId    Int
+  companyId Int
+  createdAt DateTime @default(now()) @db.DateTime(0)
+  User      User     @relation(fields: [userId], references: [id], map: "fk_auditlog_user")
+  Company   Company  @relation(fields: [companyId], references: [id], map: "fk_auditlog_company")
 
-  users     User[]
-  customers Customer[]
-  products  Product[]
-  orders    Order[]
-
-  orderItems OrderItem[]
-
-  auditLogs AuditLog[]
-
-  payments Payment[]
-
-  suppliers Supplier[]
-
-  stockMovements StockMovement[]
+  @@index([action], map: "idx_audit_action")
+  @@index([companyId], map: "idx_audit_company")
+  @@index([createdAt], map: "idx_audit_created")
+  @@index([entity, entityId], map: "idx_audit_entity")
+  @@index([userId], map: "idx_audit_user")
 }
 
-model User {
-  id       Int    @id @default(autoincrement())
-  name     String
-  email    String
-  password String
-  role     String @default("MEMBER")
+model Brand {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(255)
+  description String?   @db.Text
+  companyId   Int
+  createdAt   DateTime  @default(now()) @db.DateTime(0)
+  updatedAt   DateTime  @default(now()) @db.DateTime(0)
+  Company     Company   @relation(fields: [companyId], references: [id], map: "fk_brand_company")
+  Product     Product[]
 
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
+  @@unique([companyId, name], map: "unique_company_brand")
+  @@index([companyId], map: "idx_brand_company")
+}
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(255)
+  description String?   @db.Text
+  companyId   Int
+  createdAt   DateTime  @default(now()) @db.DateTime(0)
+  updatedAt   DateTime  @default(now()) @db.DateTime(0)
+  Company     Company   @relation(fields: [companyId], references: [id], map: "fk_category_company")
+  Product     Product[]
 
-  auditLogs AuditLog[]
+  @@unique([companyId, name], map: "unique_company_category")
+  @@index([companyId], map: "idx_category_company")
+}
 
-  refreshTokens RefreshToken[]
+model Company {
+  id                   Int                    @id @default(autoincrement())
+  name                 String                 @db.VarChar(255)
+  tradeName            String?                @db.VarChar(255)
+  cnpj                 String                 @unique(map: "cnpj") @db.VarChar(18)
+  email                String?                @db.VarChar(255)
+  phone                String?                @db.VarChar(20)
+  address              String?                @db.VarChar(255)
+  city                 String?                @db.VarChar(100)
+  state                String?                @db.VarChar(50)
+  zipCode              String?                @db.VarChar(20)
+  createdAt            DateTime               @default(now()) @db.DateTime(0)
+  updatedAt            DateTime               @default(now()) @db.DateTime(0)
+  deletedAt            DateTime?              @db.DateTime(0)
+  AuditLog             AuditLog[]
+  Brand                Brand[]
+  Category             Category[]
+  Customer             Customer[]
+  FinancialTransaction FinancialTransaction[]
+  Notification         Notification[]
+  Order                Order[]
+  OrderItem            OrderItem[]
+  Payment              Payment[]
+  Product              Product[]
+  StockMovement        StockMovement[]
+  Supplier             Supplier[]
+  User                 User[]
 }
 
 model Customer {
-  id        Int     @id @default(autoincrement())
-  name      String
-  document  String?
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
+  id                   Int                    @id @default(autoincrement())
+  name                 String                 @db.VarChar(255)
+  email                String?                @db.VarChar(255)
+  phone                String?                @db.VarChar(20)
+  document             String?                @db.VarChar(50)
+  notes                String?                @db.Text
+  isActive             Boolean                @default(true)
+  companyId            Int
+  createdById          Int?
+  createdAt            DateTime               @default(now()) @db.DateTime(0)
+  updatedAt            DateTime               @default(now()) @db.DateTime(0)
+  deletedAt            DateTime?              @db.DateTime(0)
+  Company              Company                @relation(fields: [companyId], references: [id], map: "fk_customer_company")
+  User                 User?                  @relation("CustomerCreatedBy", fields: [createdById], references: [id], map: "fk_customer_createdby")
+  FinancialTransaction FinancialTransaction[]
+  Order                Order[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  orders Order[]
-
-  @@unique([companyId, document])
+  @@unique([companyId, document], map: "unique_company_document")
+  @@index([createdById], map: "fk_customer_createdby")
+  @@index([companyId], map: "idx_customer_company")
 }
 
-model Product {
-  id        Int     @id @default(autoincrement())
-  name      String
-  price     Decimal @db.Decimal(10, 2)
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
+model FinancialTransaction {
+  id             Int       @id @default(autoincrement())
+  type           String    @db.VarChar(20)
+  amount         Decimal   @db.Decimal(10, 2)
+  dueDate        DateTime  @db.DateTime(0)
+  paidAt         DateTime? @db.DateTime(0)
+  paidAmount     Decimal?  @db.Decimal(10, 2)
+  description    String?   @db.Text
+  category       String?   @db.VarChar(100)
+  documentNumber String?   @db.VarChar(100)
+  source         String?   @db.VarChar(20)
+  supplierId     Int?
+  customerId     Int?
+  orderId        Int?
+  paymentId      Int?
+  status         String    @default("PENDING") @db.VarChar(20)
+  notes          String?   @db.Text
+  companyId      Int
+  createdAt      DateTime  @default(now()) @db.DateTime(0)
+  updatedAt      DateTime  @default(now()) @db.DateTime(0)
+  Supplier       Supplier? @relation(fields: [supplierId], references: [id], map: "fk_financial_supplier")
+  Customer       Customer? @relation(fields: [customerId], references: [id], map: "fk_financial_customer")
+  Order          Order?    @relation(fields: [orderId], references: [id], map: "fk_financial_order")
+  Payment        Payment?  @relation(fields: [paymentId], references: [id], map: "fk_financial_payment")
+  Company        Company   @relation(fields: [companyId], references: [id], map: "fk_financial_company")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@index([supplierId], map: "fk_financial_supplier")
+  @@index([customerId], map: "fk_financial_customer")
+  @@index([orderId], map: "fk_financial_order")
+  @@index([paymentId], map: "fk_financial_payment")
+  @@index([companyId], map: "idx_financial_company")
+  @@index([dueDate], map: "idx_financial_duedate")
+  @@index([source], map: "idx_financial_source")
+  @@index([status], map: "idx_financial_status")
+  @@index([type], map: "idx_financial_type")
+}
 
-  items OrderItem[]
+model Notification {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  title       String    @db.VarChar(255)
+  message     String    @db.Text
+  type        String    @default("INFO") @db.VarChar(20)
+  isRead      Boolean   @default(false)
+  readAt      DateTime? @db.DateTime(0)
+  link        String?   @db.VarChar(500)
+  companyId   Int
+  createdById Int?
+  createdAt   DateTime  @default(now()) @db.DateTime(0)
+  updatedAt   DateTime  @default(now()) @db.DateTime(0)
+  User        User      @relation("NotificationUser", fields: [userId], references: [id], map: "fk_notification_user")
+  Company     Company   @relation(fields: [companyId], references: [id], map: "fk_notification_company")
+  CreatedBy   User?     @relation("NotificationCreatedBy", fields: [createdById], references: [id], map: "fk_notification_createdby")
 
-  stockMovements StockMovement[]
+  @@index([createdById], map: "fk_notification_createdby")
+  @@index([companyId], map: "idx_notification_company")
+  @@index([createdAt], map: "idx_notification_created")
+  @@index([isRead], map: "idx_notification_read")
+  @@index([userId], map: "idx_notification_user")
 }
 
 model Order {
-  id    Int     @id @default(autoincrement())
-  code  String
-  total Decimal @db.Decimal(10, 2)
+  id                   Int                    @id @default(autoincrement())
+  code                 String                 @db.VarChar(255)
+  description          String?                @db.Text
+  subtotal             Decimal                @db.Decimal(10, 2)
+  discount             Decimal?               @db.Decimal(10, 2)
+  total                Decimal                @db.Decimal(10, 2)
+  status               String                 @default("PENDING") @db.VarChar(20)
+  customerId           Int
+  companyId            Int
+  createdById          Int?
+  createdAt            DateTime               @default(now()) @db.DateTime(0)
+  updatedAt            DateTime               @default(now()) @db.DateTime(0)
+  paidAt               DateTime?              @db.DateTime(0)
+  canceledAt           DateTime?              @db.DateTime(0)
+  FinancialTransaction FinancialTransaction[]
+  Customer             Customer               @relation(fields: [customerId], references: [id], map: "fk_order_customer")
+  Company              Company                @relation(fields: [companyId], references: [id], map: "fk_order_company")
+  User                 User?                  @relation("OrderCreatedBy", fields: [createdById], references: [id], map: "fk_order_createdby")
+  OrderItem            OrderItem[]
+  Payment              Payment[]
+  StockMovement        StockMovement[]
 
-  customerId Int
-  customer   Customer @relation(fields: [customerId], references: [id])
-
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  items    OrderItem[]
-  payments Payment[]
-
-  @@unique([companyId, code])
+  @@unique([companyId, code], map: "unique_company_order_code")
+  @@index([createdById], map: "fk_order_createdby")
+  @@index([companyId], map: "idx_order_company")
+  @@index([companyId, createdAt], map: "idx_order_company_created")
+  @@index([customerId], map: "idx_order_customer")
+  @@index([status], map: "idx_order_status")
 }
 
 model OrderItem {
-  id       Int     @id @default(autoincrement())
-  name     String
-  quantity Int
-  price    Decimal @db.Decimal(10, 2)
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  quantity    Int      @default(1)
+  price       Decimal  @db.Decimal(10, 2)
+  itemType    String   @default("PRODUCT") @db.VarChar(20)
+  productId   Int?
+  orderId     Int
+  companyId   Int
+  createdAt   DateTime @default(now()) @db.DateTime(0)
+  updatedAt   DateTime @default(now()) @db.DateTime(0)
+  Product     Product? @relation(fields: [productId], references: [id], map: "fk_orderitem_product")
+  Order       Order    @relation(fields: [orderId], references: [id], map: "fk_orderitem_order")
+  Company     Company  @relation(fields: [companyId], references: [id], map: "fk_orderitem_company")
 
-  productId Int?
-  product   Product? @relation(fields: [productId], references: [id])
-
-  orderId Int
-  order   Order @relation(fields: [orderId], references: [id])
-
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
-}
-
-model AuditLog {
-  id       Int    @id @default(autoincrement())
-  action   String
-  entity   String
-  entityId Int
-
-  userId Int
-  user   User @relation(fields: [userId], references: [id])
-
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
-
-  createdAt DateTime @default(now())
+  @@index([companyId], map: "idx_orderitem_company")
+  @@index([orderId], map: "idx_orderitem_order")
+  @@index([productId], map: "idx_orderitem_product")
+  @@index([itemType], map: "idx_orderitem_type")
 }
 
 model Payment {
-  id     Int     @id @default(autoincrement())
-  amount Decimal @db.Decimal(10, 2)
-  status String
+  id                   Int                    @id @default(autoincrement())
+  amount               Decimal                @db.Decimal(10, 2)
+  method               String                 @db.VarChar(50)
+  status               String                 @default("PENDING") @db.VarChar(20)
+  installments         Int?
+  installmentNumber    Int?
+  reference            String?                @db.VarChar(255)
+  externalId           String?                @db.VarChar(255)
+  notes                String?                @db.Text
+  dueDate              DateTime?              @db.DateTime(0)
+  paidAt               DateTime?              @db.DateTime(0)
+  orderId              Int
+  companyId            Int
+  createdAt            DateTime               @default(now()) @db.DateTime(0)
+  updatedAt            DateTime               @default(now()) @db.DateTime(0)
+  FinancialTransaction FinancialTransaction[]
+  Order                Order                  @relation(fields: [orderId], references: [id], map: "fk_payment_order")
+  Company              Company                @relation(fields: [companyId], references: [id], map: "fk_payment_company")
 
-  orderId Int
-  order   Order @relation(fields: [orderId], references: [id])
-
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
+  @@index([companyId], map: "idx_payment_company")
+  @@index([companyId, createdAt], map: "idx_payment_company_created")
+  @@index([orderId], map: "idx_payment_order")
+  @@index([status], map: "idx_payment_status")
 }
 
-model Supplier {
-  id        Int     @id @default(autoincrement())
-  name      String
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
-}
+model Product {
+  id            Int             @id @default(autoincrement())
+  name          String          @db.VarChar(255)
+  description   String?         @db.Text
+  price         Decimal         @db.Decimal(10, 2)
+  cost          Decimal?        @db.Decimal(10, 2)
+  sku           String?         @db.VarChar(100)
+  barcode       String?         @db.VarChar(100)
+  imageUrl      String?         @db.VarChar(500)
+  stockQuantity Int             @default(0)
+  minStock      Int             @default(0)
+  maxStock      Int?
+  isActive      Boolean         @default(true)
+  weight        Float?          @db.Float
+  dimensions    String?         @db.VarChar(100)
+  categoryId    Int?
+  brandId       Int?
+  supplierId    Int?
+  companyId     Int
+  createdById   Int?
+  createdAt     DateTime        @default(now()) @db.DateTime(0)
+  updatedAt     DateTime        @default(now()) @db.DateTime(0)
+  deletedAt     DateTime?       @db.DateTime(0)
+  OrderItem     OrderItem[]
+  Category      Category?       @relation(fields: [categoryId], references: [id], map: "fk_product_category")
+  Brand         Brand?          @relation(fields: [brandId], references: [id], map: "fk_product_brand")
+  Supplier      Supplier?       @relation(fields: [supplierId], references: [id], map: "fk_product_supplier")
+  Company       Company         @relation(fields: [companyId], references: [id], map: "fk_product_company")
+  User          User?           @relation("ProductCreatedBy", fields: [createdById], references: [id], map: "fk_product_createdby")
+  StockMovement StockMovement[]
 
-model StockMovement {
-  id       Int    @id @default(autoincrement())
-  quantity Int
-  type     String
-
-  productId Int
-  product   Product @relation(fields: [productId], references: [id])
-
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
+  @@unique([companyId, barcode], map: "unique_company_product_barcode")
+  @@unique([companyId, name], map: "unique_company_product_name")
+  @@unique([companyId, sku], map: "unique_company_product_sku")
+  @@index([categoryId], map: "fk_product_category")
+  @@index([brandId], map: "fk_product_brand")
+  @@index([supplierId], map: "fk_product_supplier")
+  @@index([createdById], map: "fk_product_createdby")
+  @@index([companyId], map: "idx_product_company")
 }
 
 model RefreshToken {
-  id    Int    @id @default(autoincrement())
-  token String @unique
+  id        Int       @id @default(autoincrement())
+  token     String    @unique(map: "token") @db.VarChar(255)
+  userId    Int
+  expiresAt DateTime  @db.DateTime(0)
+  createdAt DateTime  @default(now()) @db.DateTime(0)
+  revokedAt DateTime? @db.DateTime(0)
+  User      User      @relation(fields: [userId], references: [id], map: "fk_refreshtoken_user")
 
-  userId Int
-  user   User @relation(fields: [userId], references: [id])
+  @@index([revokedAt], map: "idx_token_revoked")
+  @@index([token], map: "idx_token_token")
+  @@index([userId], map: "idx_token_user")
+}
 
-  createdAt DateTime @default(now())
+model StockMovement {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  quantity    Int
+  type        String   @db.VarChar(20)
+  reason      String?  @db.VarChar(255)
+  companyId   Int
+  orderId     Int?
+  createdAt   DateTime @default(now()) @db.DateTime(0)
+  createdById Int?
+  Product     Product  @relation(fields: [productId], references: [id], map: "fk_stockmovement_product")
+  Company     Company  @relation(fields: [companyId], references: [id], map: "fk_stockmovement_company")
+  Order       Order?   @relation(fields: [orderId], references: [id], map: "fk_stockmovement_order")
+  User        User?    @relation("StockMovementCreatedBy", fields: [createdById], references: [id], map: "fk_stockmovement_createdby")
+
+  @@index([orderId], map: "fk_stockmovement_order")
+  @@index([companyId], map: "idx_stock_company")
+  @@index([createdAt], map: "idx_stock_created")
+  @@index([createdById], map: "idx_stock_createdby")
+  @@index([productId], map: "idx_stock_product")
+  @@index([type], map: "idx_stock_type")
+}
+
+model Supplier {
+  id                   Int                    @id @default(autoincrement())
+  name                 String                 @db.VarChar(255)
+  cnpj                 String?                @db.VarChar(18)
+  email                String?                @db.VarChar(255)
+  phone                String?                @db.VarChar(20)
+  address              String?                @db.VarChar(255)
+  city                 String?                @db.VarChar(100)
+  state                String?                @db.VarChar(50)
+  zipCode              String?                @db.VarChar(20)
+  contactName          String?                @db.VarChar(255)
+  notes                String?                @db.Text
+  isActive             Boolean                @default(true)
+  companyId            Int
+  createdAt            DateTime               @default(now()) @db.DateTime(0)
+  updatedAt            DateTime               @default(now()) @db.DateTime(0)
+  deletedAt            DateTime?              @db.DateTime(0)
+  FinancialTransaction FinancialTransaction[]
+  Product              Product[]
+  Company              Company                @relation(fields: [companyId], references: [id], map: "fk_supplier_company")
+
+  @@unique([companyId, cnpj], map: "unique_company_supplier_cnpj")
+  @@index([companyId], map: "idx_supplier_company")
+}
+
+model User {
+  id            Int             @id @default(autoincrement())
+  name          String          @db.VarChar(255)
+  email         String          @db.VarChar(255)
+  password      String          @db.VarChar(255)
+  role          String          @default("MEMBER") @db.VarChar(20)
+  isActive      Boolean         @default(true)
+  companyId     Int
+  createdAt     DateTime        @default(now()) @db.DateTime(0)
+  updatedAt     DateTime        @default(now()) @db.DateTime(0)
+  AuditLog      AuditLog[]
+  Customer      Customer[]      @relation("CustomerCreatedBy")
+  Notification  Notification[]  @relation("NotificationUser")
+  CreatedByNot  Notification[]  @relation("NotificationCreatedBy")
+  Order         Order[]         @relation("OrderCreatedBy")
+  Product       Product[]       @relation("ProductCreatedBy")
+  RefreshToken  RefreshToken[]
+  StockMovement StockMovement[] @relation("StockMovementCreatedBy")
+  Company       Company         @relation(fields: [companyId], references: [id], map: "fk_user_company")
+
+  @@unique([companyId, email], map: "unique_company_email")
 }
